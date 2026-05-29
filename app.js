@@ -85,6 +85,7 @@ const stars = [];
 const meteors = [];
 const grass = [];
 const breezeHair = [];
+const loadedScripts = new Map();
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -109,14 +110,46 @@ function groundLine() {
 }
 
 function loadPhotos() {
-  PHOTO_FILES.forEach((file, index) => {
+  let index = 0;
+  const loadNext = () => {
+    if (index >= PHOTO_FILES.length) return;
+    const file = PHOTO_FILES[index];
+    const current = index;
+    index += 1;
     const image = new Image();
-    image.src = `./${file}`;
     image.decoding = "async";
     image.onload = () => {
-      photos[index] = image;
+      photos[current] = image;
+      window.setTimeout(loadNext, 35);
     };
+    image.onerror = () => {
+      window.setTimeout(loadNext, 35);
+    };
+    image.src = `./${file}`;
+  };
+  loadNext();
+}
+
+function loadScript(src) {
+  if (loadedScripts.has(src)) return loadedScripts.get(src);
+  const promise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.crossOrigin = "anonymous";
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Script failed: ${src}`));
+    document.head.appendChild(script);
   });
+  loadedScripts.set(src, promise);
+  return promise;
+}
+
+async function loadHandTracking() {
+  if (window.Hands && window.Camera) return;
+  updateStatus("正在加载手势识别库，请稍等...");
+  await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+  await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
 }
 
 function resize() {
@@ -1147,31 +1180,27 @@ function updateStatus(text) {
 
 async function startCamera() {
   cameraButton.disabled = true;
-  updateStatus("正在请求摄像头权限...");
-  if (!window.Hands || !window.Camera) {
-    updateStatus("手势库还没加载好，请稍等几秒再试。");
-    cameraButton.disabled = false;
-    return;
-  }
-
-  const hands = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-  });
-  hands.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 0,
-    minDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.55,
-  });
-  hands.onResults((results) => {
-    if (results.multiHandLandmarks && results.multiHandLandmarks[0]) {
-      commitGesture(analyzeGesture(results.multiHandLandmarks[0]));
-    } else {
-      commitGesture("idle");
-    }
-  });
-
   try {
+    await loadHandTracking();
+    updateStatus("正在请求摄像头权限...");
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 0,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.55,
+    });
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks[0]) {
+        commitGesture(analyzeGesture(results.multiHandLandmarks[0]));
+      } else {
+        commitGesture("idle");
+      }
+    });
+
     let lastHandsAt = 0;
     const camera = new Camera(video, {
       onFrame: async () => {
@@ -1189,7 +1218,7 @@ async function startCamera() {
     cameraButton.style.display = "none";
   } catch (error) {
     cameraButton.disabled = false;
-    updateStatus("摄像头启动失败，请用本地服务器打开并允许摄像头权限。");
+    updateStatus("启动失败：请确认网络可加载手势库，并允许摄像头权限。");
     console.error(error);
   }
 }
