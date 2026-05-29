@@ -6,14 +6,69 @@
     <title>Meteor Love Field</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body class="locked">
     <main class="stage" aria-label="gesture controlled meteor field">
       <canvas id="scene"></canvas>
+
+      <section id="accessGate" class="access-gate" aria-label="private access">
+        <div class="access-box">
+          <div class="access-title">Chen Yun &amp; Song Bingbing</div>
+          <p>这是私密纪念网页。输入受邀邮箱，点邮件里的登录链接后才能进入。</p>
+          <form id="viewerLoginForm" class="memory-form">
+            <input id="viewerEmailInput" type="email" placeholder="输入受邀邮箱" required />
+            <button type="submit">发送登录链接</button>
+          </form>
+          <div id="accessStatus" class="memory-meta">等待登录...</div>
+        </div>
+      </section>
 
       <section class="hud" aria-live="polite">
         <div class="brand">Chen Yun &amp; Song Bingbing</div>
         <div id="status" class="status">正在准备星空...</div>
       </section>
+
+      <aside class="memory-panel" aria-label="memory tools">
+        <section class="memory-card">
+          <h2>权限</h2>
+          <form id="adminForm" class="memory-form">
+            <input id="adminEmailInput" type="email" placeholder="切换受邀邮箱" />
+            <button type="submit">发送登录链接</button>
+          </form>
+          <button id="adminLogoutButton" class="secondary-button" type="button" hidden>退出登录</button>
+          <div id="cloudStatus" class="memory-meta">云端同步准备中...</div>
+        </section>
+
+        <section class="memory-card">
+          <h2>相册</h2>
+          <div class="button-row manage-only">
+            <button id="uploadPhotoButton" type="button">上传照片</button>
+            <button id="capturePhotoButton" type="button">拍摄照片</button>
+          </div>
+          <input id="photoUploadInput" type="file" accept="image/*" multiple hidden />
+          <input id="photoCaptureInput" type="file" accept="image/*" capture="environment" hidden />
+          <div id="photoCount" class="memory-meta">已加入 0 张新照片</div>
+          <div id="photoList" class="photo-list"></div>
+        </section>
+
+        <section class="memory-card">
+          <h2>留言</h2>
+          <form id="messageForm" class="memory-form">
+            <textarea id="messageInput" maxlength="120" placeholder="写一句话"></textarea>
+            <button type="submit">发布</button>
+          </form>
+          <div id="messageList" class="memory-list"></div>
+        </section>
+
+        <section class="memory-card">
+          <h2>纪念日</h2>
+          <form id="dayForm" class="memory-form manage-only">
+            <input id="dayTitleInput" type="text" maxlength="24" placeholder="名称" />
+            <input id="dayDateInput" type="date" />
+            <button type="submit">添加</button>
+          </form>
+          <div id="dayList" class="memory-list"></div>
+        </section>
+      </aside>
 
       <video id="camera" class="camera" playsinline muted></video>
 

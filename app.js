@@ -50,10 +50,38 @@ const video = document.getElementById("camera");
 const statusEl = document.getElementById("status");
 const cameraButton = document.getElementById("cameraButton");
 const gestureBadge = document.getElementById("gestureBadge");
+const accessGate = document.getElementById("accessGate");
+const viewerLoginForm = document.getElementById("viewerLoginForm");
+const viewerEmailInput = document.getElementById("viewerEmailInput");
+const accessStatusEl = document.getElementById("accessStatus");
+const adminForm = document.getElementById("adminForm");
+const adminEmailInput = document.getElementById("adminEmailInput");
+const adminLogoutButton = document.getElementById("adminLogoutButton");
+const cloudStatusEl = document.getElementById("cloudStatus");
+const uploadPhotoButton = document.getElementById("uploadPhotoButton");
+const capturePhotoButton = document.getElementById("capturePhotoButton");
+const photoUploadInput = document.getElementById("photoUploadInput");
+const photoCaptureInput = document.getElementById("photoCaptureInput");
+const photoCountEl = document.getElementById("photoCount");
+const photoList = document.getElementById("photoList");
+const messageForm = document.getElementById("messageForm");
+const messageInput = document.getElementById("messageInput");
+const messageList = document.getElementById("messageList");
+const dayForm = document.getElementById("dayForm");
+const dayTitleInput = document.getElementById("dayTitleInput");
+const dayDateInput = document.getElementById("dayDateInput");
+const dayList = document.getElementById("dayList");
 const USE_STATIC_SCENE = true;
 const LOW_POWER = true;
 const FRAME_INTERVAL_MS = 16;
 const HAND_INTERVAL_MS = 95;
+const SUPABASE_URL = "https://xlqlioiqtgcxbznxkzxh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_hV5MSIwmarO19BTsyPMuAQ_3YnQ72NS";
+const SUPABASE_BUCKET = "memories";
+const MESSAGE_KEY = "meteor-love-field.messages";
+const DAY_KEY = "meteor-love-field.days";
+const PHOTO_DB_NAME = "meteor-love-field";
+const PHOTO_STORE_NAME = "photos";
 
 const state = {
   width: 0,
@@ -78,14 +106,24 @@ const state = {
   balloons: [],
   balloonStartedAt: 0,
   fireworks: [],
+  userPhotoCount: 0,
+  messages: [],
+  days: [],
+  session: null,
+  authorized: false,
+  canManage: false,
+  started: false,
 };
 
 const photos = [];
+const bundledPhotos = [];
+const cloudPhotos = [];
 const stars = [];
 const meteors = [];
 const grass = [];
 const breezeHair = [];
 const loadedScripts = new Map();
+let supabaseClient = null;
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -109,6 +147,22 @@ function groundLine() {
   return state.height * 0.78;
 }
 
+function photoPoolCount() {
+  return Math.max(photos.length, 1);
+}
+
+function rebuildPhotoPool() {
+  photos.length = 0;
+  cloudPhotos.forEach((photo) => {
+    if (photo.image) photos.push(photo.image);
+  });
+  bundledPhotos.forEach((image) => {
+    if (image) photos.push(image);
+  });
+  state.userPhotoCount = cloudPhotos.length;
+  updatePhotoCount();
+}
+
 function loadPhotos() {
   let index = 0;
   const loadNext = () => {
@@ -119,7 +173,8 @@ function loadPhotos() {
     const image = new Image();
     image.decoding = "async";
     image.onload = () => {
-      photos[current] = image;
+      bundledPhotos[current] = image;
+      rebuildPhotoPool();
       window.setTimeout(loadNext, 35);
     };
     image.onerror = () => {
@@ -128,6 +183,103 @@ function loadPhotos() {
     image.src = `./${file}`;
   };
   loadNext();
+}
+
+function createImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function openPhotoDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(PHOTO_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(PHOTO_STORE_NAME, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getStoredPhotos() {
+  const db = await openPhotoDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PHOTO_STORE_NAME, "readonly");
+    const request = transaction.objectStore(PHOTO_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function putStoredPhoto(photo) {
+  const db = await openPhotoDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PHOTO_STORE_NAME, "readwrite");
+    const request = transaction.objectStore(PHOTO_STORE_NAME).put(photo);
+    request.onsuccess = resolve;
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function updatePhotoCount() {
+  photoCountEl.textContent = `云端相册 ${state.userPhotoCount} 张照片`;
+}
+
+async function addUserPhoto(dataUrl) {
+  const image = await createImage(dataUrl);
+  photos.push(image);
+  state.userPhotoCount += 1;
+  updatePhotoCount();
+}
+
+async function loadUserPhotos() {
+  try {
+    const stored = await getStoredPhotos();
+    stored.sort((a, b) => a.createdAt - b.createdAt);
+    for (const photo of stored) {
+      await addUserPhoto(photo.dataUrl);
+    }
+  } catch (error) {
+    console.warn("Failed to load saved photos", error);
+  }
+}
+
+async function compressPhoto(file) {
+  const src = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const image = await createImage(src);
+  const maxEdge = 1280;
+  const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const offscreen = document.createElement("canvas");
+  offscreen.width = width;
+  offscreen.height = height;
+  offscreen.getContext("2d").drawImage(image, 0, 0, width, height);
+  return offscreen.toDataURL("image/jpeg", 0.82);
+}
+
+async function handlePhotoFiles(files) {
+  const list = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
+  if (!list.length) return;
+  if (!state.canManage) {
+    setCloudStatus("只有管理者可以上传照片。");
+    return;
+  }
+  updateStatus("正在把照片上传到私密云端相册...");
+  for (const file of list) {
+    await uploadCloudPhoto(file);
+  }
+  await loadCloudPhotos();
+  updateStatus("新照片已加入流星和气球互动。");
 }
 
 function loadScript(src) {
@@ -143,6 +295,424 @@ function loadScript(src) {
   });
   loadedScripts.set(src, promise);
   return promise;
+}
+
+async function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return supabaseClient;
+}
+
+function setAccessStatus(text) {
+  if (accessStatusEl) accessStatusEl.textContent = text;
+}
+
+function setCloudStatus(text) {
+  if (cloudStatusEl) cloudStatusEl.textContent = text;
+}
+
+function authRedirectUrl() {
+  return window.location.href.split("#")[0].split("?")[0];
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function formatDateTime(value) {
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function dayDistanceText(dateString) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${dateString}T00:00:00`);
+  const diff = Math.round((target - today) / 86400000);
+  if (diff === 0) return "就是今天";
+  if (diff > 0) return `还有 ${diff} 天`;
+  return `已经 ${Math.abs(diff)} 天`;
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, body] = dataUrl.split(",");
+  const mime = (header.match(/data:(.*);base64/) || [])[1] || "image/jpeg";
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function randomId() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function renderAuthState() {
+  const email = normalizeEmail(state.session && state.session.user && state.session.user.email);
+  document.querySelectorAll(".manage-only").forEach((element) => {
+    element.hidden = !state.canManage;
+  });
+
+  if (adminForm) adminForm.hidden = !!state.session;
+  if (adminLogoutButton) adminLogoutButton.hidden = !state.session;
+
+  if (!state.session) {
+    setCloudStatus("请先用受邀邮箱登录。");
+  } else if (!state.authorized) {
+    setCloudStatus("这个邮箱还没有被邀请，暂时不能进入。");
+  } else if (state.canManage) {
+    setCloudStatus(`${email} 已进入私密模式，可以上传和删除。`);
+  } else {
+    setCloudStatus(`${email} 已进入私密模式，可以浏览和留言。`);
+  }
+}
+
+async function sendLoginLink(email) {
+  const client = await getSupabaseClient();
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail) return;
+  setAccessStatus("正在发送登录邮件...");
+  setCloudStatus("正在发送登录邮件...");
+  const { error } = await client.auth.signInWithOtp({
+    email: cleanEmail,
+    options: { emailRedirectTo: authRedirectUrl() },
+  });
+  if (error) throw error;
+  setAccessStatus("登录链接已发送，请去邮箱里点开它。");
+  setCloudStatus("登录链接已发送，请去邮箱里点开它。");
+}
+
+async function fetchViewerProfile() {
+  const client = await getSupabaseClient();
+  const email = normalizeEmail(state.session && state.session.user && state.session.user.email);
+  if (!email) return null;
+  const { data, error } = await client
+    .from("allowed_viewers")
+    .select("email, can_manage")
+    .eq("email", email)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+function lockPrivateScene(message) {
+  if (accessGate) accessGate.hidden = false;
+  document.body.classList.add("locked");
+  state.authorized = false;
+  state.canManage = false;
+  renderAuthState();
+  if (message) setAccessStatus(message);
+}
+
+function unlockPrivateScene() {
+  if (accessGate) accessGate.hidden = true;
+  document.body.classList.remove("locked");
+  if (!state.started) {
+    state.started = true;
+    loadPhotos();
+    resize();
+    updateStatus("点击开启摄像头，然后对着镜头做手势。");
+    requestAnimationFrame(tick);
+  }
+}
+
+async function applySession(session) {
+  state.session = session || null;
+  if (!session) {
+    lockPrivateScene("输入受邀邮箱后，点邮件里的登录链接进入。");
+    renderPhotoList();
+    renderMessages();
+    renderDays();
+    return;
+  }
+
+  try {
+    const profile = await fetchViewerProfile();
+    if (!profile) {
+      lockPrivateScene("这个邮箱还没在邀请名单里。");
+      return;
+    }
+    state.authorized = true;
+    state.canManage = !!profile.can_manage;
+    renderAuthState();
+    unlockPrivateScene();
+    setAccessStatus("已进入私密纪念网页。");
+    await Promise.all([loadCloudPhotos(), loadCloudMessages(), loadCloudDays()]);
+  } catch (error) {
+    console.error(error);
+    lockPrivateScene("云端权限表还没配置好，先去 Supabase 运行我给你的 SQL。");
+  }
+}
+
+async function initPrivateCloud() {
+  try {
+    const client = await getSupabaseClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    await applySession(session);
+    client.auth.onAuthStateChange((_event, nextSession) => {
+      applySession(nextSession);
+    });
+  } catch (error) {
+    console.error(error);
+    lockPrivateScene("无法连接 Supabase，请检查网络和项目配置。");
+  }
+}
+
+async function uploadCloudPhoto(file) {
+  const client = await getSupabaseClient();
+  const dataUrl = await compressPhoto(file);
+  const blob = dataUrlToBlob(dataUrl);
+  const path = `photos/${Date.now()}-${randomId()}.jpg`;
+  const upload = await client.storage.from(SUPABASE_BUCKET).upload(path, blob, {
+    contentType: "image/jpeg",
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (upload.error) throw upload.error;
+  const insert = await client.from("memory_photos").insert({ storage_path: path });
+  if (insert.error) {
+    await client.storage.from(SUPABASE_BUCKET).remove([path]);
+    throw insert.error;
+  }
+}
+
+async function loadCloudPhotos() {
+  if (!state.authorized) return;
+  const client = await getSupabaseClient();
+  const { data, error } = await client
+    .from("memory_photos")
+    .select("id, storage_path, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const rows = data || [];
+  const paths = rows.map((row) => row.storage_path);
+  let signedUrls = [];
+  if (paths.length) {
+    const signed = await client.storage.from(SUPABASE_BUCKET).createSignedUrls(paths, 3600);
+    if (signed.error) throw signed.error;
+    signedUrls = signed.data || [];
+  }
+
+  cloudPhotos.length = 0;
+  for (let i = 0; i < rows.length; i += 1) {
+    const signedUrl = signedUrls[i] && signedUrls[i].signedUrl;
+    if (!signedUrl) continue;
+    try {
+      const image = await createImage(signedUrl);
+      cloudPhotos.push({ ...rows[i], url: signedUrl, image });
+    } catch (error) {
+      console.warn("Failed to load cloud photo", rows[i].storage_path, error);
+    }
+  }
+  rebuildPhotoPool();
+  renderPhotoList();
+}
+
+async function deleteCloudPhoto(photo) {
+  if (!state.canManage) return;
+  const client = await getSupabaseClient();
+  const removeRow = await client.from("memory_photos").delete().eq("id", photo.id);
+  if (removeRow.error) throw removeRow.error;
+  await client.storage.from(SUPABASE_BUCKET).remove([photo.storage_path]);
+  await loadCloudPhotos();
+}
+
+function renderPhotoList() {
+  if (!photoList) return;
+  photoList.innerHTML = "";
+  if (!state.authorized) {
+    photoList.innerHTML = '<div class="memory-empty">登录后显示云端照片</div>';
+    return;
+  }
+  if (!cloudPhotos.length) {
+    photoList.innerHTML = '<div class="memory-empty">还没有云端照片</div>';
+    return;
+  }
+  cloudPhotos.forEach((photo) => {
+    const item = document.createElement("div");
+    item.className = "photo-item";
+    const image = document.createElement("img");
+    image.src = photo.url;
+    image.alt = "uploaded memory";
+    const time = document.createElement("span");
+    time.textContent = formatDateTime(photo.created_at);
+    item.append(image, time);
+    if (state.canManage) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "删除";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await deleteCloudPhoto(photo);
+          setCloudStatus("照片已删除。");
+        } catch (error) {
+          console.error(error);
+          setCloudStatus("删除失败，请检查 Supabase 权限。");
+          button.disabled = false;
+        }
+      });
+      item.append(button);
+    }
+    photoList.append(item);
+  });
+}
+
+async function loadCloudMessages() {
+  if (!state.authorized) return;
+  const client = await getSupabaseClient();
+  const { data, error } = await client
+    .from("memory_messages")
+    .select("id, content, author_email, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  state.messages = data || [];
+  renderMessages();
+}
+
+async function addCloudMessage(content) {
+  const client = await getSupabaseClient();
+  const author = normalizeEmail(state.session && state.session.user && state.session.user.email);
+  const { error } = await client.from("memory_messages").insert({
+    content,
+    author_email: author,
+  });
+  if (error) throw error;
+  await loadCloudMessages();
+}
+
+async function deleteCloudMessage(id) {
+  if (!state.canManage) return;
+  const client = await getSupabaseClient();
+  const { error } = await client.from("memory_messages").delete().eq("id", id);
+  if (error) throw error;
+  await loadCloudMessages();
+}
+
+function renderMessages() {
+  if (!messageList) return;
+  messageList.innerHTML = "";
+  if (!state.authorized) {
+    messageList.innerHTML = '<div class="memory-empty">登录后显示留言</div>';
+    return;
+  }
+  if (!state.messages.length) {
+    messageList.innerHTML = '<div class="memory-empty">还没有留言</div>';
+    return;
+  }
+  state.messages.forEach((message) => {
+    const item = document.createElement("div");
+    item.className = "memory-item";
+    const content = document.createElement("strong");
+    content.textContent = message.content;
+    const meta = document.createElement("span");
+    meta.textContent = `${formatDateTime(message.created_at)} · ${message.author_email || "受邀成员"}`;
+    item.append(content, meta);
+    if (state.canManage) {
+      const actions = document.createElement("div");
+      actions.className = "memory-actions";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "删除";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await deleteCloudMessage(message.id);
+        } catch (error) {
+          console.error(error);
+          setCloudStatus("删除留言失败，请检查权限。");
+          button.disabled = false;
+        }
+      });
+      actions.append(button);
+      item.append(actions);
+    }
+    messageList.append(item);
+  });
+}
+
+async function loadCloudDays() {
+  if (!state.authorized) return;
+  const client = await getSupabaseClient();
+  const { data, error } = await client
+    .from("memory_days")
+    .select("id, title, target_date, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  state.days = data || [];
+  renderDays();
+}
+
+async function addCloudDay(title, targetDate) {
+  const client = await getSupabaseClient();
+  const { error } = await client.from("memory_days").insert({
+    title,
+    target_date: targetDate,
+  });
+  if (error) throw error;
+  await loadCloudDays();
+}
+
+async function deleteCloudDay(id) {
+  if (!state.canManage) return;
+  const client = await getSupabaseClient();
+  const { error } = await client.from("memory_days").delete().eq("id", id);
+  if (error) throw error;
+  await loadCloudDays();
+}
+
+function renderDays() {
+  if (!dayList) return;
+  dayList.innerHTML = "";
+  if (!state.authorized) {
+    dayList.innerHTML = '<div class="memory-empty">登录后显示纪念日</div>';
+    return;
+  }
+  if (!state.days.length) {
+    dayList.innerHTML = '<div class="memory-empty">还没有纪念日</div>';
+    return;
+  }
+  state.days.forEach((day) => {
+    const item = document.createElement("div");
+    item.className = "memory-item";
+    const title = document.createElement("strong");
+    title.textContent = `${day.title} · ${dayDistanceText(day.target_date)}`;
+    const meta = document.createElement("span");
+    meta.textContent = `${day.target_date} 添加`;
+    item.append(title, meta);
+    if (state.canManage) {
+      const actions = document.createElement("div");
+      actions.className = "memory-actions";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "删除";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await deleteCloudDay(day.id);
+        } catch (error) {
+          console.error(error);
+          setCloudStatus("删除纪念日失败，请检查权限。");
+          button.disabled = false;
+        }
+      });
+      actions.append(button);
+      item.append(actions);
+    }
+    dayList.append(item);
+  });
 }
 
 async function loadHandTracking() {
@@ -199,7 +769,7 @@ function newMeteor(x, y) {
     speed: rand(92, 190),
     size: rand(1.6, 3.8),
     delay: rand(0, 5.8),
-    photo: Math.floor(rand(0, PHOTO_FILES.length)),
+    photo: Math.floor(rand(0, photoPoolCount())),
     glow: rand(0.45, 0.95),
     depth: rand(0.65, 1.5),
     hue: rand(188, 220),
@@ -480,7 +1050,7 @@ function updateMeteors(dt) {
     meteor.y += meteor.speed * dt * 0.23 * slow;
     if (meteor.x > state.width + meteor.len || meteor.y > skyLimit() - 24) {
       Object.assign(meteor, newMeteor(rand(-state.width * 0.75, -80), rand(24, state.height * 0.42)));
-      meteor.photo = (state.photoIndex + index) % PHOTO_FILES.length;
+      meteor.photo = (state.photoIndex + index) % photoPoolCount();
     }
   });
 }
@@ -579,10 +1149,14 @@ function drawImageCover(image, x, y, w, h) {
 
 function startPinchPhoto() {
   if (state.pinchShow) return;
+  if (!photos.length) {
+    updateStatus("还没有可展示的照片。");
+    return;
+  }
   const visible = meteors.filter((item) => item.delay <= 0 && item.x > 0 && item.x < state.width && item.y < state.height * 0.72);
   const pool = visible.length ? visible : meteors;
   const meteor = pool.reduce((best, item) => (item.x > best.x ? item : best), pool[0]);
-  state.photoIndex = (state.photoIndex + 1) % PHOTO_FILES.length;
+  state.photoIndex = (state.photoIndex + 1) % photos.length;
   state.pinchShow = {
     image: photos[state.photoIndex],
     x: meteor ? meteor.x : state.width * 0.68,
@@ -835,9 +1409,13 @@ function drawTextParticles() {
 
 function startBalloons() {
   if (state.balloons.length) return;
+  if (!photos.length) {
+    updateStatus("还没有可展示的照片。");
+    return;
+  }
   state.balloonStartedAt = state.time;
   const palette = ["#ffd7e6", "#c7f1ff", "#fff0a8", "#c9facf", "#dfd2ff", "#ffd8ba"];
-  const count = photos.length || PHOTO_FILES.length;
+  const count = photos.length;
   const columns = clamp(Math.floor(state.width / 230), 4, 8);
   const rowSpacing = clamp(state.height * 0.42, 280, 390);
   for (let i = 0; i < count; i += 1) {
@@ -945,7 +1523,7 @@ function drawBalloons() {
       roundedRect(-photoW / 2, -photoH / 2, photoW, photoH, 4);
       ctx.clip();
       drawImageCover(b.image, -photoW / 2, -photoH / 2, photoW, photoH);
-    } else if (index < PHOTO_FILES.length) {
+    } else if (photos.length) {
       b.image = photos[index % photos.length];
     }
     ctx.restore();
@@ -1266,9 +1844,112 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-loadPhotos();
-resize();
 window.addEventListener("resize", resize);
 cameraButton.addEventListener("click", startCamera);
-updateStatus("点击开启摄像头，然后对着镜头做手势。");
-requestAnimationFrame(tick);
+
+viewerLoginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await sendLoginLink(viewerEmailInput.value);
+  } catch (error) {
+    console.error(error);
+    setAccessStatus("发送失败，请检查邮箱或 Supabase 配置。");
+  }
+});
+
+adminForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await sendLoginLink(adminEmailInput.value);
+  } catch (error) {
+    console.error(error);
+    setCloudStatus("发送失败，请检查邮箱或 Supabase 配置。");
+  }
+});
+
+adminLogoutButton.addEventListener("click", async () => {
+  const client = await getSupabaseClient();
+  await client.auth.signOut();
+});
+
+uploadPhotoButton.addEventListener("click", () => {
+  if (!state.canManage) {
+    setCloudStatus("只有管理者可以上传照片。");
+    return;
+  }
+  photoUploadInput.click();
+});
+
+capturePhotoButton.addEventListener("click", () => {
+  if (!state.canManage) {
+    setCloudStatus("只有管理者可以拍摄上传。");
+    return;
+  }
+  photoCaptureInput.click();
+});
+
+photoUploadInput.addEventListener("change", async () => {
+  try {
+    await handlePhotoFiles(photoUploadInput.files);
+  } catch (error) {
+    console.error(error);
+    setCloudStatus("上传失败，请检查 Supabase 表和 Storage 权限。");
+  } finally {
+    photoUploadInput.value = "";
+  }
+});
+
+photoCaptureInput.addEventListener("change", async () => {
+  try {
+    await handlePhotoFiles(photoCaptureInput.files);
+  } catch (error) {
+    console.error(error);
+    setCloudStatus("上传失败，请检查 Supabase 表和 Storage 权限。");
+  } finally {
+    photoCaptureInput.value = "";
+  }
+});
+
+messageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const content = messageInput.value.trim();
+  if (!content) return;
+  if (!state.authorized) {
+    setCloudStatus("登录后才能留言。");
+    return;
+  }
+  try {
+    await addCloudMessage(content);
+    messageInput.value = "";
+    setCloudStatus("留言已发布，受邀的人都能看到。");
+  } catch (error) {
+    console.error(error);
+    setCloudStatus("发布失败，请检查留言表权限。");
+  }
+});
+
+dayForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const title = dayTitleInput.value.trim();
+  const date = dayDateInput.value;
+  if (!title || !date) return;
+  if (!state.canManage) {
+    setCloudStatus("只有管理者可以添加纪念日。");
+    return;
+  }
+  try {
+    await addCloudDay(title, date);
+    dayTitleInput.value = "";
+    dayDateInput.value = "";
+    setCloudStatus("纪念日已添加。");
+  } catch (error) {
+    console.error(error);
+    setCloudStatus("添加失败，请检查纪念日表权限。");
+  }
+});
+
+renderPhotoList();
+renderMessages();
+renderDays();
+setAccessStatus("输入受邀邮箱后，点邮件里的登录链接进入。");
+initPrivateCloud();

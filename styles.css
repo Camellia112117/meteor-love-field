@@ -46,6 +46,64 @@ body {
   display: block;
 }
 
+.access-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(123, 232, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(3, 6, 17, 0.32), rgba(3, 6, 17, 0.82));
+  backdrop-filter: blur(10px);
+}
+
+.access-box {
+  width: min(420px, 100%);
+  border: 1px solid rgba(143, 232, 255, 0.28);
+  border-radius: 8px;
+  padding: 22px;
+  color: rgba(255, 255, 255, 0.9);
+  background:
+    linear-gradient(135deg, rgba(4, 18, 39, 0.78), rgba(58, 22, 58, 0.58)),
+    rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.access-title {
+  margin-bottom: 8px;
+  color: rgba(255, 250, 230, 0.98);
+  font-size: clamp(26px, 5vw, 42px);
+  font-weight: 850;
+  line-height: 1.04;
+  text-shadow:
+    0 0 22px rgba(108, 228, 255, 0.55),
+    0 0 36px rgba(255, 139, 214, 0.34);
+}
+
+.access-box p {
+  margin: 0 0 16px;
+  color: rgba(235, 244, 255, 0.76);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+body.locked .hud,
+body.locked .memory-panel,
+body.locked .camera,
+body.locked .camera-button,
+body.locked .gesture-badge,
+body.locked #scene {
+  visibility: hidden;
+}
+
+body:not(.locked) .access-gate {
+  display: none;
+}
+
 .hud {
   position: absolute;
   top: clamp(16px, 3vw, 34px);
@@ -84,6 +142,188 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 12px 38px rgba(0, 0, 0, 0.22);
+}
+
+.memory-panel {
+  position: absolute;
+  left: clamp(12px, 2vw, 24px);
+  top: clamp(118px, 17vh, 170px);
+  z-index: 6;
+  display: grid;
+  gap: 10px;
+  width: min(292px, calc(100vw - 24px));
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.memory-card {
+  border: 1px solid rgba(143, 232, 255, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  background:
+    linear-gradient(135deg, rgba(4, 18, 39, 0.62), rgba(58, 22, 58, 0.38)),
+    rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+.memory-card h2 {
+  margin: 0 0 9px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.memory-card button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  color: #081322;
+  background: linear-gradient(135deg, #fff2b8, #ff9bd0 55%, #8eeaff);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.memory-card button.secondary-button,
+.memory-item button,
+.photo-item button {
+  color: rgba(240, 248, 255, 0.92);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(143, 232, 255, 0.24);
+}
+
+.memory-card button:disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
+.memory-meta {
+  margin-top: 8px;
+  color: rgba(234, 244, 255, 0.72);
+  font-size: 12px;
+}
+
+.memory-form {
+  display: grid;
+  gap: 8px;
+}
+
+.memory-form textarea,
+.memory-form input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(4, 9, 21, 0.56);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.memory-form textarea {
+  min-height: 58px;
+  resize: vertical;
+  padding: 9px;
+}
+
+.memory-form input {
+  min-height: 34px;
+  padding: 0 9px;
+}
+
+.memory-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+  max-height: 142px;
+  overflow: auto;
+}
+
+.memory-item {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.memory-item strong {
+  font-size: 13px;
+}
+
+.memory-item span {
+  color: rgba(235, 244, 255, 0.68);
+  font-size: 11px;
+}
+
+.memory-empty {
+  color: rgba(235, 244, 255, 0.6);
+  font-size: 12px;
+}
+
+.memory-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.memory-actions button,
+.photo-item button {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.photo-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+  max-height: 210px;
+  overflow: auto;
+}
+
+.photo-item {
+  position: relative;
+  min-height: 112px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.photo-item img {
+  display: block;
+  width: 100%;
+  height: 86px;
+  object-fit: cover;
+}
+
+.photo-item span {
+  display: block;
+  padding: 6px 7px;
+  color: rgba(235, 244, 255, 0.7);
+  font-size: 11px;
+}
+
+.photo-item button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-height: 25px;
+  backdrop-filter: blur(10px);
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .camera {
@@ -159,5 +399,17 @@ body {
 
   .gesture-badge {
     min-width: 112px;
+  }
+
+  .memory-panel {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    width: calc(100vw - 148px);
+    max-height: 38vh;
+  }
+
+  .memory-card {
+    padding: 10px;
   }
 }
