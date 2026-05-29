@@ -192,7 +192,7 @@ body:not(.locked) .access-gate {
 .memory-toggle {
   position: absolute;
   left: clamp(12px, 2vw, 24px);
-  top: clamp(82px, 12vh, 120px);
+  bottom: clamp(18px, 3vw, 30px);
   z-index: 7;
   min-width: 72px;
   min-height: 38px;
@@ -467,8 +467,7 @@ body:not(.locked) .access-gate {
   }
 
   .memory-toggle {
-    top: auto;
-    bottom: 132px;
+    bottom: 74px;
     left: 12px;
   }
 

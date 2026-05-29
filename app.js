@@ -53,9 +53,11 @@ const gestureBadge = document.getElementById("gestureBadge");
 const accessGate = document.getElementById("accessGate");
 const viewerLoginForm = document.getElementById("viewerLoginForm");
 const viewerEmailInput = document.getElementById("viewerEmailInput");
+const viewerPasswordInput = document.getElementById("viewerPasswordInput");
 const accessStatusEl = document.getElementById("accessStatus");
 const adminForm = document.getElementById("adminForm");
 const adminEmailInput = document.getElementById("adminEmailInput");
+const adminPasswordInput = document.getElementById("adminPasswordInput");
 const adminLogoutButton = document.getElementById("adminLogoutButton");
 const cloudStatusEl = document.getElementById("cloudStatus");
 const memoryPanel = document.querySelector(".memory-panel");
@@ -97,6 +99,8 @@ const state = {
   candidateGesture: "idle",
   candidateCount: 0,
   cameraReady: false,
+  cameraController: null,
+  handsController: null,
   wind: 0,
   photoIndex: 0,
   pinchShow: null,
@@ -319,6 +323,17 @@ function authRedirectUrl() {
   return window.location.href.split("#")[0].split("?")[0];
 }
 
+async function absorbAuthRedirect(client) {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if (!code) return;
+  const { error } = await client.auth.exchangeCodeForSession(code);
+  window.history.replaceState({}, document.title, authRedirectUrl());
+  if (error) {
+    console.warn("Auth redirect exchange failed", error);
+  }
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -369,9 +384,9 @@ function renderAuthState() {
   if (adminLogoutButton) adminLogoutButton.hidden = !state.session;
 
   if (!state.session) {
-    setCloudStatus("请先用受邀邮箱登录。");
+    setCloudStatus("请先用固定账号和密码登录。");
   } else if (!state.authorized) {
-    setCloudStatus("这个邮箱还没有被邀请，暂时不能进入。");
+    setCloudStatus("这个账号还没有被加入允许名单，暂时不能进入。");
   } else if (state.canManage) {
     setCloudStatus(`${email} 已进入私密模式，可以上传和删除。`);
   } else {
@@ -386,19 +401,19 @@ function setMemoryPanel(open) {
   memoryToggle.setAttribute("aria-expanded", String(open));
 }
 
-async function sendLoginLink(email) {
+async function signInWithPasswordAccount(email, password) {
   const client = await getSupabaseClient();
   const cleanEmail = normalizeEmail(email);
-  if (!cleanEmail) return;
-  setAccessStatus("正在发送登录邮件...");
-  setCloudStatus("正在发送登录邮件...");
-  const { error } = await client.auth.signInWithOtp({
+  if (!cleanEmail || !password) return;
+  setAccessStatus("正在登录...");
+  setCloudStatus("正在登录...");
+  const { error } = await client.auth.signInWithPassword({
     email: cleanEmail,
-    options: { emailRedirectTo: authRedirectUrl() },
+    password,
   });
   if (error) throw error;
-  setAccessStatus("登录链接已发送，请去邮箱里点开它。");
-  setCloudStatus("登录链接已发送，请去邮箱里点开它。");
+  setAccessStatus("登录成功，正在进入...");
+  setCloudStatus("登录成功，正在进入...");
 }
 
 async function fetchViewerProfile() {
@@ -438,7 +453,7 @@ function unlockPrivateScene() {
 async function applySession(session) {
   state.session = session || null;
   if (!session) {
-    lockPrivateScene("输入受邀邮箱后，点邮件里的登录链接进入。");
+    lockPrivateScene("输入固定账号和密码后进入。");
     renderPhotoList();
     renderMessages();
     renderDays();
@@ -448,7 +463,7 @@ async function applySession(session) {
   try {
     const profile = await fetchViewerProfile();
     if (!profile) {
-      lockPrivateScene("这个邮箱还没在邀请名单里。");
+      lockPrivateScene("这个账号还没在允许名单里。");
       return;
     }
     state.authorized = true;
@@ -459,13 +474,14 @@ async function applySession(session) {
     await Promise.all([loadCloudPhotos(), loadCloudMessages(), loadCloudDays()]);
   } catch (error) {
     console.error(error);
-    lockPrivateScene("云端权限表还没配置好，先去 Supabase 运行我给你的 SQL。");
+    lockPrivateScene(`云端权限还差一步：${error.message || "请去 Supabase 运行补充 SQL"}`);
   }
 }
 
 async function initPrivateCloud() {
   try {
     const client = await getSupabaseClient();
+    await absorbAuthRedirect(client);
     const {
       data: { session },
     } = await client.auth.getSession();
@@ -1362,7 +1378,14 @@ function buildTextLayout(text, key) {
           x,
           y,
           size: rand(0.55, 4.3) * (Math.random() > 0.9 ? 1.5 : 1),
-          color: Math.random() > 0.5 ? "#fff0b6" : Math.random() > 0.5 ? "#8eeeff" : Math.random() > 0.5 ? "#ff9bd5" : "#d8b5ff",
+          color:
+            Math.random() > 0.5
+              ? "rgba(255, 230, 165, 0.72)"
+              : Math.random() > 0.5
+                ? "rgba(127, 226, 255, 0.64)"
+                : Math.random() > 0.5
+                  ? "rgba(255, 143, 207, 0.58)"
+                  : "rgba(206, 180, 255, 0.58)",
         });
       }
     }
@@ -1394,10 +1417,10 @@ function updateTextParticles(dt) {
   state.textParticles.forEach((p) => {
     p.px = p.x;
     p.py = p.y;
-    const ax = (p.tx - p.x) * 120;
-    const ay = (p.ty - p.y) * 120;
-    p.vx = (p.vx + ax * dt) * 0.5;
-    p.vy = (p.vy + ay * dt) * 0.5;
+    const ax = (p.tx - p.x) * 210;
+    const ay = (p.ty - p.y) * 210;
+    p.vx = (p.vx + ax * dt) * 0.58;
+    p.vy = (p.vy + ay * dt) * 0.58;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
   });
@@ -1406,10 +1429,10 @@ function updateTextParticles(dt) {
 function drawTextParticles() {
   if (!state.textParticles.length) return;
   ctx.save();
-  ctx.globalCompositeOperation = "screen";
+  ctx.globalCompositeOperation = "source-over";
   state.textParticles.forEach((p) => {
     ctx.fillStyle = p.color;
-    ctx.globalAlpha = 0.72 + Math.sin(state.time * 4.6 + p.tx * 0.01) * 0.22;
+    ctx.globalAlpha = 0.46 + Math.sin(state.time * 4.6 + p.tx * 0.01) * 0.12;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     ctx.fill();
@@ -1436,7 +1459,7 @@ function startBalloons() {
     state.balloons.push({
       x: spreadX + rand(-12, 12),
       y: state.height + 90 + row * rowSpacing + stagger + rand(0, 48),
-      speed: rand(112, 150),
+      speed: rand(172, 228),
       phase: rand(0, Math.PI * 2),
       color: palette[i % palette.length],
       image: photos[i % photos.length],
@@ -1445,7 +1468,7 @@ function startBalloons() {
       depth: rand(0.78, 1.22),
       lineLen: rand(142, 208),
       drift: rand(16, 42),
-      delay: ((i % columns) % 2) * 0.16 + rand(0, 0.2),
+      delay: ((i % columns) % 2) * 0.08 + rand(0, 0.1),
     });
   }
 }
@@ -1691,8 +1714,8 @@ function analyzeGesture(landmarks) {
     const p = landmarks[pips[index]];
     return t.y > p.y - 0.005;
   });
-  if (folded.filter(Boolean).length >= 4) return "fist";
   if (pinch) return "pinch";
+  if (folded.filter(Boolean).length >= 4) return "fist";
   if (extended.every(Boolean)) return "open";
   if (extended[0] && !extended[1] && !extended[2] && !extended[3]) return "one";
   if (extended[0] && extended[1] && !extended[2] && !extended[3]) return "two";
@@ -1766,9 +1789,51 @@ function updateStatus(text) {
   statusEl.textContent = text;
 }
 
+function resetGestureScene() {
+  state.mode = "idle";
+  state.stableGesture = "idle";
+  state.candidateGesture = "idle";
+  state.candidateCount = 0;
+  state.pinchShow = null;
+  state.textParticles = [];
+  state.textMode = "";
+  state.balloons = [];
+  state.fireworks = [];
+  updateBadge("idle");
+}
+
+async function stopCamera() {
+  cameraButton.disabled = true;
+  try {
+    if (state.cameraController && typeof state.cameraController.stop === "function") {
+      state.cameraController.stop();
+    }
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
+    }
+    if (state.handsController && typeof state.handsController.close === "function") {
+      await state.handsController.close();
+    }
+  } catch (error) {
+    console.warn("Failed to close camera cleanly", error);
+  }
+  state.cameraController = null;
+  state.handsController = null;
+  state.cameraReady = false;
+  resetGestureScene();
+  cameraButton.textContent = "开启摄像头";
+  cameraButton.disabled = false;
+  updateStatus("摄像头已关闭，需要互动时可以再次开启。");
+}
+
 async function startCamera() {
+  if (state.cameraReady) {
+    await stopCamera();
+    return;
+  }
   if (!state.authorized) {
-    lockPrivateScene("请先用受邀邮箱登录，登录后才能开启摄像头。");
+    lockPrivateScene("请先用固定账号和密码登录，登录后才能开启摄像头。");
     return;
   }
   cameraButton.disabled = true;
@@ -1787,7 +1852,9 @@ async function startCamera() {
     });
     hands.onResults((results) => {
       if (results.multiHandLandmarks && results.multiHandLandmarks[0]) {
-        commitGesture(analyzeGesture(results.multiHandLandmarks[0]));
+        const landmarks = results.multiHandLandmarks[0];
+        const gesture = analyzeGesture(landmarks);
+        commitGesture(gesture);
       } else {
         commitGesture("idle");
       }
@@ -1806,10 +1873,14 @@ async function startCamera() {
     });
     await camera.start();
     state.cameraReady = true;
+    state.cameraController = camera;
+    state.handsController = hands;
     updateStatus("手势已开启: 捏合、握拳、数字 1/2/3，张开手掌恢复。");
-    cameraButton.style.display = "none";
+    cameraButton.textContent = "关闭摄像头";
+    cameraButton.disabled = false;
   } catch (error) {
     cameraButton.disabled = false;
+    cameraButton.textContent = "开启摄像头";
     updateStatus("启动失败：请确认网络可加载手势库，并允许摄像头权限。");
     console.error(error);
   }
@@ -1866,20 +1937,20 @@ if (memoryCloseButton) memoryCloseButton.addEventListener("click", () => setMemo
 viewerLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
-    await sendLoginLink(viewerEmailInput.value);
+    await signInWithPasswordAccount(viewerEmailInput.value, viewerPasswordInput.value);
   } catch (error) {
     console.error(error);
-    setAccessStatus("发送失败，请检查邮箱或 Supabase 配置。");
+    setAccessStatus("登录失败，请检查账号和密码。");
   }
 });
 
 adminForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
-    await sendLoginLink(adminEmailInput.value);
+    await signInWithPasswordAccount(adminEmailInput.value, adminPasswordInput.value);
   } catch (error) {
     console.error(error);
-    setCloudStatus("发送失败，请检查邮箱或 Supabase 配置。");
+    setCloudStatus("登录失败，请检查账号和密码。");
   }
 });
 
@@ -1967,5 +2038,5 @@ dayForm.addEventListener("submit", async (event) => {
 renderPhotoList();
 renderMessages();
 renderDays();
-setAccessStatus("输入受邀邮箱后，点邮件里的登录链接进入。");
+setAccessStatus("输入固定账号和密码后进入。");
 initPrivateCloud();

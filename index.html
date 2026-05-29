@@ -29,7 +29,7 @@
         display: none !important;
       }
     </style>
-    <link rel="stylesheet" href="./styles.css?v=private-cloud-2" />
+    <link rel="stylesheet" href="./styles.css?v=private-cloud-10" />
   </head>
   <body class="locked">
     <main class="stage" aria-label="gesture controlled meteor field">
@@ -38,10 +38,11 @@
       <section id="accessGate" class="access-gate" aria-label="private access">
         <div class="access-box">
           <div class="access-title">Chen Yun &amp; Song Bingbing</div>
-          <p>这是私密纪念网页。输入受邀邮箱，点邮件里的登录链接后才能进入。</p>
+          <p>这是私密纪念网页。输入固定账号和密码后才能进入。</p>
           <form id="viewerLoginForm" class="memory-form">
-            <input id="viewerEmailInput" type="email" placeholder="输入受邀邮箱" required />
-            <button type="submit">发送登录链接</button>
+            <input id="viewerEmailInput" type="email" placeholder="账号/邮箱" required />
+            <input id="viewerPasswordInput" type="password" placeholder="密码" required />
+            <button type="submit">登录</button>
           </form>
           <div id="accessStatus" class="memory-meta">等待登录...</div>
         </div>
@@ -61,8 +62,9 @@
         <section class="memory-card">
           <h2>权限</h2>
           <form id="adminForm" class="memory-form">
-            <input id="adminEmailInput" type="email" placeholder="切换受邀邮箱" />
-            <button type="submit">发送登录链接</button>
+            <input id="adminEmailInput" type="email" placeholder="切换账号/邮箱" />
+            <input id="adminPasswordInput" type="password" placeholder="密码" />
+            <button type="submit">登录</button>
           </form>
           <button id="adminLogoutButton" class="secondary-button" type="button" hidden>退出登录</button>
           <div id="cloudStatus" class="memory-meta">云端同步准备中...</div>
@@ -113,6 +115,6 @@
       <div id="gestureBadge" class="gesture-badge">等待手势</div>
     </main>
 
-    <script src="./app.js?v=private-cloud-2"></script>
+    <script src="./app.js?v=private-cloud-10"></script>
   </body>
 </html>
