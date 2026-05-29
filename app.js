@@ -58,6 +58,9 @@ const adminForm = document.getElementById("adminForm");
 const adminEmailInput = document.getElementById("adminEmailInput");
 const adminLogoutButton = document.getElementById("adminLogoutButton");
 const cloudStatusEl = document.getElementById("cloudStatus");
+const memoryPanel = document.querySelector(".memory-panel");
+const memoryToggle = document.getElementById("memoryToggle");
+const memoryCloseButton = document.getElementById("memoryCloseButton");
 const uploadPhotoButton = document.getElementById("uploadPhotoButton");
 const capturePhotoButton = document.getElementById("capturePhotoButton");
 const photoUploadInput = document.getElementById("photoUploadInput");
@@ -374,6 +377,13 @@ function renderAuthState() {
   } else {
     setCloudStatus(`${email} 已进入私密模式，可以浏览和留言。`);
   }
+}
+
+function setMemoryPanel(open) {
+  if (!memoryPanel || !memoryToggle) return;
+  memoryPanel.classList.toggle("open", open);
+  memoryToggle.classList.toggle("hidden", open);
+  memoryToggle.setAttribute("aria-expanded", String(open));
 }
 
 async function sendLoginLink(email) {
@@ -1757,6 +1767,10 @@ function updateStatus(text) {
 }
 
 async function startCamera() {
+  if (!state.authorized) {
+    lockPrivateScene("请先用受邀邮箱登录，登录后才能开启摄像头。");
+    return;
+  }
   cameraButton.disabled = true;
   try {
     await loadHandTracking();
@@ -1846,6 +1860,8 @@ function tick(now) {
 
 window.addEventListener("resize", resize);
 cameraButton.addEventListener("click", startCamera);
+if (memoryToggle) memoryToggle.addEventListener("click", () => setMemoryPanel(true));
+if (memoryCloseButton) memoryCloseButton.addEventListener("click", () => setMemoryPanel(false));
 
 viewerLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();

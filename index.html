@@ -4,7 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meteor Love Field</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      body.locked .hud,
+      body.locked .memory-toggle,
+      body.locked .memory-panel,
+      body.locked .camera,
+      body.locked .camera-button,
+      body.locked .gesture-badge,
+      body.locked #scene {
+        visibility: hidden !important;
+      }
+      .access-gate {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background: rgba(3, 6, 17, 0.82);
+        color: #fff;
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+      }
+      body:not(.locked) .access-gate {
+        display: none !important;
+      }
+    </style>
+    <link rel="stylesheet" href="./styles.css?v=private-cloud-2" />
   </head>
   <body class="locked">
     <main class="stage" aria-label="gesture controlled meteor field">
@@ -28,6 +53,11 @@
       </section>
 
       <aside class="memory-panel" aria-label="memory tools">
+        <div class="memory-panel-head">
+          <strong>回忆云端</strong>
+          <button id="memoryCloseButton" class="secondary-button" type="button">收起</button>
+        </div>
+
         <section class="memory-card">
           <h2>权限</h2>
           <form id="adminForm" class="memory-form">
@@ -70,6 +100,10 @@
         </section>
       </aside>
 
+      <button id="memoryToggle" class="memory-toggle" type="button" aria-expanded="false">
+        回忆
+      </button>
+
       <video id="camera" class="camera" playsinline muted></video>
 
       <button id="cameraButton" class="camera-button" type="button">
@@ -79,6 +113,6 @@
       <div id="gestureBadge" class="gesture-badge">等待手势</div>
     </main>
 
-    <script src="./app.js"></script>
+    <script src="./app.js?v=private-cloud-2"></script>
   </body>
 </html>

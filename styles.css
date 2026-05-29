@@ -147,7 +147,7 @@ body:not(.locked) .access-gate {
 .memory-panel {
   position: absolute;
   left: clamp(12px, 2vw, 24px);
-  top: clamp(118px, 17vh, 170px);
+  top: clamp(82px, 12vh, 120px);
   z-index: 6;
   display: grid;
   gap: 10px;
@@ -155,6 +155,63 @@ body:not(.locked) .access-gate {
   max-height: calc(100vh - 150px);
   overflow: auto;
   padding-right: 4px;
+  transform: translateX(calc(-100% - 28px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+.memory-panel.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.memory-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(143, 232, 255, 0.22);
+  border-radius: 8px;
+  color: rgba(255, 250, 230, 0.96);
+  background:
+    linear-gradient(135deg, rgba(4, 18, 39, 0.68), rgba(58, 22, 58, 0.44)),
+    rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+.memory-panel-head strong {
+  font-size: 14px;
+}
+
+.memory-toggle {
+  position: absolute;
+  left: clamp(12px, 2vw, 24px);
+  top: clamp(82px, 12vh, 120px);
+  z-index: 7;
+  min-width: 72px;
+  min-height: 38px;
+  border: 1px solid rgba(143, 232, 255, 0.28);
+  border-radius: 8px;
+  color: rgba(255, 250, 230, 0.95);
+  background:
+    linear-gradient(135deg, rgba(8, 28, 57, 0.78), rgba(62, 24, 62, 0.62)),
+    rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(115, 226, 255, 0.15);
+}
+
+.memory-toggle.hidden {
+  display: none;
 }
 
 .memory-card {
@@ -405,8 +462,14 @@ body:not(.locked) .access-gate {
     top: auto;
     bottom: 12px;
     left: 12px;
-    width: calc(100vw - 148px);
-    max-height: 38vh;
+    width: min(360px, calc(100vw - 24px));
+    max-height: 52vh;
+  }
+
+  .memory-toggle {
+    top: auto;
+    bottom: 132px;
+    left: 12px;
   }
 
   .memory-card {
